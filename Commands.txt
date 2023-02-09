@@ -1,0 +1,92 @@
+﻿Commands to install kafka on EC2 instance
+
+# Update instance
+yum update -y
+
+# Install java
+yum install -y java-1.8.0-openjdk.x86_64
+
+# Install wget, in case it is not installed.
+yum install -y wget
+
+# We'll keep all installs in /usr/local/bin
+cd /usr/local/bin
+
+# Download Scala 2.13.3 and untar file
+# You can check the other scala binaries at 
+# https://www.scala-lang.org/files/archive/
+wget  https://www.scala-lang.org/files/archive/scala-2.13.3.tgz
+tar -xvzf scala-2.13.3.tgz
+
+# Download kafka and untar file
+wget https://downloads.apache.org/kafka/2.7.0/kafka_2.13-2.7.0.tgz -v 2> ./wget_output.log
+tar -xvf kafka_2.13-2.7.0.tgz 
+
+# Remove tgz files
+rm -f kafka_2.13-2.7.0.tgz scala-2.13.3.tgz 
+
+# Renames the kafka folder
+sudo mv kafka_2.13-2.7.0/ kafka
+
+# Make 2 folders for data - one for kafka, one for zookeeper
+cd kafka
+mkdir -p data/kafka
+mkdir -p data/zookeeper
+
+# Edit .bashrc - put the kafka and scala path in $PATH
+echo "export JAVA_HOME=/usr/lib/jvm/jre-1.8.0-openjdk" >> /etc/profile
+echo "export JRE_HOME=/usr/lib/jvm/jre" >> /etc/profile
+echo "export PATH=/usr/local/bin/scala-2.13.3/bin:/usr/local/bin/kafka/bin:$PATH" >> /root/.bashrc
+# sudo su -
+# source /etc/profile
+
+# Update zookeeper properties and kafka proeprties
+cd /usr/local/bin/kafka
+sudo sed -i -e "s/dataDir=\/tmp\/zookeeper/dataDir=\/usr\/local\/bin\/kafka\/data\/zookeeper/g" config/zookeeper.properties 
+sudo sed -i -e "s/log\.dirs=\/tmp\/kafka-logs/log\.dirs=\/usr\/local\/bin\/kafka\/data\/kafka/g" config/server.properties 
+
+# Checks if .bashrc and profile is edited, forwards to log file
+# Checks if properties files are edited, forwards to log file
+tail -5 /etc/profile > /usr/local/bin/edit-properties.log
+tail -5 /root/.bashrc >> /usr/local/bin/edit-properties.log
+grep dataDir /usr/local/bin/kafka/config/zookeeper.properties >> /usr/local/bin/edit-properties.log
+grep log.dirs /usr/local/bin/kafka/config/server.properties >> /usr/local/bin/edit-properties.log
+# exit
+
+# OPTIONAL: 
+# Creating my user and setting user as root
+sudo useradd -m -G root eden 
+#
+# Changes the hostname to hcptstkafka1
+sudo sed -i "s/.*/hcptstkafka1/" /etc/hostname
+sudo sed -i "s/localhost/hcptstkafka1" /etc/hosts
+sudo hostname hcptstkafka1
+#
+# Updates db for the locate command to immediately work
+sudo updatedb
+
+
+Commands to start the kafka on EC2 instance
+
+# change directory to kafka
+cd /usr/local/bin/kafka
+
+# start the zookeeper first
+bin/zookeeper-server-start.sh config/zookeeper.properties
+
+# JVM memory allocation
+export KAFKA_HEAP_OPTS="-Xmx256M -Xms128M"
+
+# start the kakfa
+bin/kafka-server-start.sh config/server.properties
+
+Commands to create a new topic in kafka
+
+# change directory to kafka
+cd /usr/local/bin/kafka
+
+# to create a new topic
+bin/kafka-topics.sh –create –topic <topic name> --bootstrap-server <IP>:9092 –replication-factor 1 –partition 1
+
+# to view the list of topics in kafka
+bin/kafka-topics.sh –list –bootstrap-server <IP>:9092
